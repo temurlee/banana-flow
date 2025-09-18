@@ -125,12 +125,11 @@ const Sidebar: React.FC<SidebarProps> = ({ onAddNode, isCollapsed, onToggleColla
                 <div 
                   className="w-64 bg-card/95 border border-border rounded-lg shadow-lg backdrop-blur-sm"
                   style={{ 
-                    height: 'calc(100vh - 6rem)', 
-                    maxHeight: '600px',
+                    maxHeight: 'calc(100vh - 4rem - 20px)',
                     overflow: 'hidden'
                   }}
                 >
-                  <div className="p-3 h-full overflow-y-auto">
+                  <div className="p-3 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 4rem - 20px)' }}>
                     <SidebarContent onAddNode={onAddNode} />
                   </div>
                 </div>

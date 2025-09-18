@@ -10,12 +10,8 @@
   - 自动安装依赖
   - 提供多种启动模式选择
 
-### 2. `quick-start.sh` - 快速启动脚本
-- **功能**: 直接启动前端开发服务器
-- **使用**: `./quick-start.sh`
-- **特点**: 简单快速，适合日常开发
 
-### 3. `start.bat` - Windows 批处理脚本
+### 2. `start.bat` - Windows 批处理脚本
 - **功能**: Windows 系统的启动脚本
 - **使用**: 双击 `start.bat` 或在命令行运行
 - **特点**: 支持中文显示，提供多种启动选项
@@ -51,10 +47,7 @@ npm run server
 # 方法1: 使用完整脚本
 ./start.sh
 
-# 方法2: 使用快速启动
-./quick-start.sh
-
-# 方法3: 直接使用 npm
+# 方法2: 直接使用 npm
 npm run dev
 ```
 
