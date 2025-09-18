@@ -45,21 +45,11 @@
    npm run dev:full
    ```
 
-## 部署到GitHub Pages
+## 项目托管
 
-项目已配置GitHub Actions自动部署到GitHub Pages：
-
-1. 在GitHub仓库设置中添加环境变量：
-   - 进入仓库的 Settings > Secrets and variables > Actions
-   - 添加 `GEMINI_API_KEY` 密钥
-
-2. 推送代码到main分支即可自动部署：
-   ```bash
-   git push origin main
-   ```
-
-3. 部署完成后，应用将在以下地址可用：
-   `https://temurlee.github.io/banana_flow/`
+项目已托管在GitHub上：
+- **仓库地址**: https://github.com/temurlee/banana_flow
+- **克隆项目**: `git clone https://github.com/temurlee/banana_flow.git`
 
 ## 项目结构
 
@@ -77,4 +67,4 @@
 - **UI**: Tailwind CSS, Radix UI, Framer Motion
 - **后端**: Node.js, Express
 - **AI**: Google Gemini API
-- **部署**: GitHub Pages, GitHub Actions
+- **版本控制**: Git, GitHub
