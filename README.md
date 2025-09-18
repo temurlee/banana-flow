@@ -2,19 +2,79 @@
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 </div>
 
-# Run and deploy your AI Studio app
+# Banana Flow - AI图像处理工作流应用
 
-This contains everything you need to run your app locally.
+这是一个基于React和Vite构建的AI图像处理工作流应用，集成了Gemini AI和图像处理功能。
 
-View your app in AI Studio: https://ai.studio/apps/drive/1kGACMDHsjV6ELsIAwAfYCf8EYiGa8xW-
+## 功能特性
 
-## Run Locally
+- 🎨 拖拽式节点编辑器界面
+- 🤖 集成Gemini AI进行智能图像分析
+- 📁 文件上传和处理功能
+- 🔄 实时工作流执行
+- 📱 响应式设计
 
-**Prerequisites:**  Node.js
+## 本地运行
 
+**前置要求:** Node.js 18+
 
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+1. 安装依赖：
+   ```bash
+   npm install
+   ```
+
+2. 配置环境变量：
+   - 创建 `.env.local` 文件
+   - 添加您的Gemini API密钥：
+     ```
+     GEMINI_API_KEY=your_gemini_api_key_here
+     ```
+
+3. 启动开发服务器：
+   ```bash
+   npm run dev
+   ```
+
+4. 启动后端服务器（可选）：
+   ```bash
+   npm run server
+   ```
+
+5. 同时运行前端和后端：
+   ```bash
+   npm run dev:full
+   ```
+
+## 部署到GitHub Pages
+
+项目已配置GitHub Actions自动部署到GitHub Pages：
+
+1. 在GitHub仓库设置中添加环境变量：
+   - 进入仓库的 Settings > Secrets and variables > Actions
+   - 添加 `GEMINI_API_KEY` 密钥
+
+2. 推送代码到main分支即可自动部署：
+   ```bash
+   git push origin main
+   ```
+
+3. 部署完成后，应用将在以下地址可用：
+   `https://temurlee.github.io/banana_flow/`
+
+## 项目结构
+
+```
+├── components/          # React组件
+├── services/           # API服务
+├── server/             # 后端服务器
+├── lib/                # 工具函数
+└── types.ts            # TypeScript类型定义
+```
+
+## 技术栈
+
+- **前端**: React 19, TypeScript, Vite
+- **UI**: Tailwind CSS, Radix UI, Framer Motion
+- **后端**: Node.js, Express
+- **AI**: Google Gemini API
+- **部署**: GitHub Pages, GitHub Actions
