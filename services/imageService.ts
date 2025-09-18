@@ -14,6 +14,18 @@ interface DownloadOptions {
     visualCrop?: VisualCropData;
 }
 
+interface ProcessImageOptions {
+    imageFile: File;
+    format: 'jpeg' | 'png' | 'webp';
+    quality: number;
+    cropData?: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+}
+
 const parseCropPrompt = (prompt?: string): { width: number; height: number } | null => {
     if (!prompt) return null;
     const params = prompt.split(',').map(p => parseInt(p.trim(), 10));
@@ -129,4 +141,45 @@ export const downloadImage = async (options: DownloadOptions): Promise<void> => 
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+};
+
+// 使用后端ImageMagick处理图片
+export const processImageWithImageMagick = async (options: ProcessImageOptions): Promise<Blob> => {
+    const { imageFile, format, quality, cropData } = options;
+    
+    const formData = new FormData();
+    formData.append('image', imageFile);
+    formData.append('format', format);
+    formData.append('quality', quality.toString());
+    if (cropData) {
+        formData.append('cropData', JSON.stringify(cropData));
+    }
+    
+    try {
+        const response = await fetch('http://localhost:3001/api/process-image', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Image processing failed: ${response.status} ${errorText}`);
+        }
+        
+        return await response.blob();
+    } catch (error) {
+        console.error('ImageMagick processing error:', error);
+        throw error;
+    }
+};
+
+// 检查后端服务是否可用
+export const checkImageProcessorHealth = async (): Promise<boolean> => {
+    try {
+        const response = await fetch('http://localhost:3001/api/health');
+        return response.ok;
+    } catch (error) {
+        console.warn('Image processor not available:', error);
+        return false;
+    }
 };

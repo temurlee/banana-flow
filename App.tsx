@@ -839,12 +839,33 @@ const App: React.FC = () => {
       }
       
       const activeInputEdges = inputEdges.filter(edge => nodeOutputs.hasOwnProperty(edge.sourceHandleId));
+      
+      // 检查节点是否可以运行
+      let canRun = false;
       if (node.type === NodeType.CONDITIONAL) {
-          if (activeInputEdges.length === 0) continue;
+          canRun = activeInputEdges.length > 0;
+      } else if (node.type === NodeType.PROMPT_PRESET) {
+          // 预设节点：如果有输入连接就运行，没有就跳过
+          canRun = activeInputEdges.length > 0;
+      } else if (node.type === NodeType.IMAGE_EDITOR) {
+          // 图片编辑器：至少需要图片输入，文本输入可选
+          const hasImageInput = inputEdges.some(edge => 
+              activeInputEdges.some(activeEdge => activeEdge.id === edge.id) &&
+              edge.targetHandleId.includes('input-image')
+          );
+          canRun = hasImageInput;
       } else {
-          if (activeInputEdges.length < inputEdges.length) {
-              continue;
-          }
+          // 其他节点：需要所有输入都有数据
+          canRun = activeInputEdges.length >= inputEdges.length;
+      }
+      
+      if (!canRun) {
+          // 不符合运行条件的节点，标记为等待状态并跳过
+          updateNodeData(nodeId, { 
+              status: NodeStatus.IDLE, 
+              progressMessage: inputEdges.length > 0 ? "等待输入..." : "需要连接输入" 
+          });
+          continue;
       }
 
       if (node.data.isMuted) {
