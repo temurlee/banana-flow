@@ -146,7 +146,7 @@ const Sidebar: React.FC<SidebarProps> = ({ onAddNode, isCollapsed, onToggleColla
       transition={{ duration: 0.2, ease: "easeOut" }}
     >
       <div className="flex items-center justify-between mb-6 flex-shrink-0">
-          <h2 className="text-xl font-semibold text-foreground px-2">BananaFlow</h2>
+          <h2 className="text-xl font-semibold text-foreground px-2">FlowShot</h2>
           <TooltipProvider>
             <Tooltip>
               <TooltipTrigger asChild>

@@ -8,6 +8,7 @@ import GroupComponent from './components/GroupComponent';
 import { PlayIcon, SaveIcon, FolderOpenIcon, UndoIcon, RedoIcon } from './components/icons';
 import * as geminiService from './services/geminiService';
 import { PRESET_CONFIGS } from './presets';
+import { applyAlignment, createNodeBounds, type AlignmentConfig, type AlignmentResult, type AlignmentGuide } from './lib/alignmentUtils';
 
 interface WorkflowState {
   nodes: Record<string, Node>;
@@ -167,6 +168,14 @@ const App: React.FC = () => {
   const [connectingEdgeEnd, setConnectingEdgeEnd] = useState<Point | null>(null);
   const [selectedNodeIds, setSelectedNodeIds] = useState(new Set<string>());
   const [selectionBoxDiv, setSelectionBoxDiv] = useState<{ top: number; left: number; width: number; height: number; } | null>(null);
+  const [alignmentConfig, setAlignmentConfig] = useState<AlignmentConfig>({
+    gridSize: 20,
+    snapThreshold: 8,
+    guideThreshold: 10,
+    enabled: true,
+  });
+  const [showAlignmentGuides, setShowAlignmentGuides] = useState(true);
+  const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuide[]>([]);
   
   const dragInfo = useRef<{ initialPositions: Map<string, Point>; startMousePos: Point; } | null>(null);
   const clipboard = useRef<{ nodes: Node[], edges: Edge[] } | null>(null);
@@ -406,14 +415,64 @@ const App: React.FC = () => {
 
             setNodes(prev => {
                 const newNodes = { ...prev };
-                initialPositions.forEach((startPos, id) => {
-                    if (newNodes[id]) {
-                        newNodes[id] = {
-                            ...newNodes[id],
-                            position: { x: startPos.x + dx, y: startPos.y + dy }
+                const selectedNodeIdsArray = Array.from(selectedNodeIds);
+                
+                // 只对第一个选中的节点应用对齐（通常是主拖拽节点）
+                if (selectedNodeIdsArray.length > 0) {
+                    const primaryNodeId = selectedNodeIdsArray[0];
+                    const primaryNode = newNodes[primaryNodeId];
+                    
+                    if (primaryNode) {
+                        const newPosition = { x: initialPositions.get(primaryNodeId)!.x + dx, y: initialPositions.get(primaryNodeId)!.y + dy };
+                        
+                        // 创建其他节点的边界信息用于对齐计算
+                        const otherNodes = Object.values(newNodes)
+                            .filter(node => node.id !== primaryNodeId)
+                            .map(node => createNodeBounds(node));
+                        
+                        // 创建当前拖拽节点的边界信息
+                        const draggedNode = createNodeBounds({
+                            ...primaryNode,
+                            position: newPosition
+                        });
+                        
+                        // 应用对齐
+                        const alignmentResult = applyAlignment(newPosition, draggedNode, otherNodes, alignmentConfig);
+                        
+                        // 更新对齐线显示（根据开关状态）
+                        setAlignmentGuides(showAlignmentGuides ? alignmentResult.guides : []);
+                        
+                        // 计算所有选中节点的相对偏移
+                        const primaryOffset = {
+                            x: alignmentResult.position.x - initialPositions.get(primaryNodeId)!.x,
+                            y: alignmentResult.position.y - initialPositions.get(primaryNodeId)!.y
                         };
+                        
+                        // 应用偏移到所有选中的节点
+                        initialPositions.forEach((startPos, id) => {
+                            if (newNodes[id]) {
+                                newNodes[id] = {
+                                    ...newNodes[id],
+                                    position: { 
+                                        x: startPos.x + primaryOffset.x, 
+                                        y: startPos.y + primaryOffset.y 
+                                    }
+                                };
+                            }
+                        });
                     }
-                });
+                } else {
+                    // 如果没有选中节点，使用原始逻辑
+                    initialPositions.forEach((startPos, id) => {
+                        if (newNodes[id]) {
+                            newNodes[id] = {
+                                ...newNodes[id],
+                                position: { x: startPos.x + dx, y: startPos.y + dy }
+                            };
+                        }
+                    });
+                }
+                
                 return newNodes;
             });
         } else if (connectingEdge.current) {
@@ -494,6 +553,7 @@ const App: React.FC = () => {
             setNodes(prev => ({...prev}));
         }
         dragInfo.current = null;
+        setAlignmentGuides([]);
         connectingEdge.current = null;
         panState.current = null;
         resizingNode.current = null;
@@ -1103,6 +1163,23 @@ const App: React.FC = () => {
                   <button onClick={uploadWorkflow} title="Load Workflow" className="p-2 text-gray-300 hover:text-white hover:bg-white/10 rounded-md transition-colors"><FolderOpenIcon className="w-5 h-5"/></button>
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" style={{ display: 'none' }} />
               </div>
+              
+              {/* 对齐参考线设置 */}
+              <div className="flex items-center space-x-1 bg-[#282A2D] p-1 rounded-lg border border-white/10">
+                  <button 
+                      onClick={() => setShowAlignmentGuides(prev => !prev)}
+                      title={`${showAlignmentGuides ? 'Hide' : 'Show'} Alignment Guides`}
+                      className={`p-2 rounded-md transition-colors ${
+                          showAlignmentGuides 
+                              ? 'text-blue-400 bg-blue-500/20' 
+                              : 'text-gray-300 hover:text-white hover:bg-white/10'
+                      }`}
+                  >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                      </svg>
+                  </button>
+              </div>
               <button
                   onClick={runWorkflow}
                   disabled={isProcessing}
@@ -1156,6 +1233,39 @@ const App: React.FC = () => {
                         end={connectingEdgeEnd}
                     />
                 )}
+
+                {/* 对齐线 */}
+                {alignmentGuides.map((guide, index) => {
+                  if (guide.type === 'horizontal') {
+                    return (
+                      <line
+                        key={`guide-h-${index}`}
+                        x1={0}
+                        y1={guide.position}
+                        x2="100%"
+                        y2={guide.position}
+                        stroke="#3b82f6"
+                        strokeWidth={1}
+                        strokeDasharray="4,4"
+                        opacity={0.8}
+                      />
+                    );
+                  } else {
+                    return (
+                      <line
+                        key={`guide-v-${index}`}
+                        x1={guide.position}
+                        y1={0}
+                        x2={guide.position}
+                        y2="100%"
+                        stroke="#3b82f6"
+                        strokeWidth={1}
+                        strokeDasharray="4,4"
+                        opacity={0.8}
+                      />
+                    );
+                  }
+                })}
               </svg>
 
               {Object.values(nodes).map(node => (
