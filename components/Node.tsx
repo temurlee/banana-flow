@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { motion } from 'framer-motion';
 import type { Node, NodeInput, NodeOutput } from '../types';
 import { NodeType, NodeStatus } from '../types';
@@ -8,6 +8,20 @@ import { OutputDisplay } from './OutputDisplay';
 import { Card, CardContent, CardHeader } from './ui/card';
 import { Badge } from './ui/badge';
 import { cn } from '../lib/utils';
+
+// 模板数据定义
+const templates = [
+  {
+    id: 'resolution-check',
+    title: '分辨率检查',
+    content: 'input.width >= 3840 && input.height >= 1500'
+  },
+  {
+    id: 'smart-resize', 
+    title: '智能扩图',
+    content: '智能扩图至3840x1500像素'
+  }
+];
 
 interface NodeProps {
   node: Node;
@@ -98,6 +112,8 @@ const Handle: React.FC<{
 
 
 const NodeComponent: React.FC<NodeProps> = ({ node, isSelected, isDragging, onMouseDown, onHandleMouseDown, onResizeMouseDown, updateNodeData }) => {
+    const [showTemplateMenu, setShowTemplateMenu] = useState(false);
+
     const computedClassName = useMemo(() => {
         const classes = ['absolute'];
 
@@ -134,17 +150,57 @@ const NodeComponent: React.FC<NodeProps> = ({ node, isSelected, isDragging, onMo
     reader.readAsDataURL(file);
   }, [node.id, updateNodeData]);
 
+  // 处理文本输入变化，检测"/"触发模板菜单
+  const handleTextInputChange = useCallback((e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    
+    if (value.endsWith('/')) {
+      setShowTemplateMenu(true);
+    } else if (showTemplateMenu && !value.endsWith('/')) {
+      setShowTemplateMenu(false);
+    }
+    
+    updateNodeData(node.id, { content: value });
+  }, [node.id, updateNodeData, showTemplateMenu]);
+
+  // 插入模板内容
+  const insertTemplate = useCallback((template: typeof templates[0]) => {
+    const currentValue = node.data.content || '';
+    const lastSlashIndex = currentValue.lastIndexOf('/');
+    const newValue = currentValue.substring(0, lastSlashIndex) + template.content;
+    
+    updateNodeData(node.id, { content: newValue });
+    setShowTemplateMenu(false);
+  }, [node.id, updateNodeData, node.data.content]);
+
   const renderNodeContent = () => {
     switch (node.type) {
       case NodeType.TEXT_INPUT:
         return (
-          <textarea
-            className="w-full p-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-sm text-foreground placeholder:text-muted-foreground"
-            rows={3}
-            value={node.data.content || ''}
-            onChange={(e) => updateNodeData(node.id, { content: e.target.value })}
-            placeholder="Enter text here..."
-          />
+          <div className="relative">
+            <textarea
+              className="w-full p-2 bg-background border border-input rounded-md focus:outline-none focus:ring-2 focus:ring-ring text-sm text-foreground placeholder:text-muted-foreground"
+              rows={3}
+              value={node.data.content || ''}
+              onChange={handleTextInputChange}
+              placeholder="Enter text here... (输入 / 查看模板)"
+            />
+            
+            {/* 模板菜单 */}
+            {showTemplateMenu && (
+              <div className="absolute top-full left-0 mt-1 w-full bg-[#282A2D] border border-white/10 rounded-md shadow-lg z-50">
+                {templates.map((template) => (
+                  <div
+                    key={template.id}
+                    className="px-3 py-2 text-sm text-gray-300 hover:bg-white/10 cursor-pointer first:rounded-t-md last:rounded-b-md"
+                    onClick={() => insertTemplate(template)}
+                  >
+                    {template.title}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         );
       case NodeType.IMAGE_INPUT:
         return <FileUploader 

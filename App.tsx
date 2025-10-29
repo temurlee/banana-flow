@@ -9,6 +9,8 @@ import { PlayIcon, SaveIcon, FolderOpenIcon, UndoIcon, RedoIcon } from './compon
 import * as geminiService from './services/geminiService';
 import { PRESET_CONFIGS } from './presets';
 import { applyAlignment, createNodeBounds, type AlignmentConfig, type AlignmentResult, type AlignmentGuide } from './lib/alignmentUtils';
+import { downloadAllImages, extractDownloadableImages } from './services/batchDownloadService';
+import type { BatchDownloadProgress } from './types';
 
 interface WorkflowState {
   nodes: Record<string, Node>;
@@ -174,8 +176,11 @@ const App: React.FC = () => {
     guideThreshold: 10,
     enabled: true,
   });
-  const [showAlignmentGuides, setShowAlignmentGuides] = useState(true);
+  const [showAlignmentGuides, setShowAlignmentGuides] = useState(false);
   const [alignmentGuides, setAlignmentGuides] = useState<AlignmentGuide[]>([]);
+  const [isBatchDownloading, setIsBatchDownloading] = useState(false);
+  const [batchDownloadProgress, setBatchDownloadProgress] = useState<BatchDownloadProgress | null>(null);
+  const [showBatchDownloadMenu, setShowBatchDownloadMenu] = useState(false);
   
   const dragInfo = useRef<{ initialPositions: Map<string, Point>; startMousePos: Point; } | null>(null);
   const clipboard = useRef<{ nodes: Node[], edges: Edge[] } | null>(null);
@@ -213,6 +218,21 @@ const App: React.FC = () => {
         console.error("Failed to load workflow from localStorage", error);
     }
   }, [resetWorkflowState]);
+
+  // 点击外部关闭批量下载菜单
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (showBatchDownloadMenu) {
+        const target = event.target as HTMLElement;
+        if (!target.closest('[data-batch-download-menu]')) {
+          setShowBatchDownloadMenu(false);
+        }
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showBatchDownloadMenu]);
 
   useEffect(() => {
      try {
@@ -436,16 +456,22 @@ const App: React.FC = () => {
                             position: newPosition
                         });
                         
-                        // 应用对齐
-                        const alignmentResult = applyAlignment(newPosition, draggedNode, otherNodes, alignmentConfig);
-                        
-                        // 更新对齐线显示（根据开关状态）
-                        setAlignmentGuides(showAlignmentGuides ? alignmentResult.guides : []);
+                        // 根据开关状态决定是否应用对齐
+                        let finalPosition = newPosition;
+                        if (showAlignmentGuides) {
+                            // 开关开启：应用对齐但不显示参考线
+                            const alignmentResult = applyAlignment(newPosition, draggedNode, otherNodes, alignmentConfig);
+                            finalPosition = alignmentResult.position;
+                            setAlignmentGuides([]); // 不显示参考线
+                        } else {
+                            // 开关关闭：完全关闭对齐功能
+                            setAlignmentGuides([]);
+                        }
                         
                         // 计算所有选中节点的相对偏移
                         const primaryOffset = {
-                            x: alignmentResult.position.x - initialPositions.get(primaryNodeId)!.x,
-                            y: alignmentResult.position.y - initialPositions.get(primaryNodeId)!.y
+                            x: finalPosition.x - initialPositions.get(primaryNodeId)!.x,
+                            y: finalPosition.y - initialPositions.get(primaryNodeId)!.y
                         };
                         
                         // 应用偏移到所有选中的节点
@@ -823,6 +849,38 @@ const App: React.FC = () => {
   const uploadWorkflow = () => {
       fileInputRef.current?.click();
   };
+
+  // 批量下载相关函数
+  const getDownloadableImagesCount = useCallback(() => {
+    return extractDownloadableImages(nodes).length;
+  }, [nodes]);
+
+  const handleBatchDownload = async (format: 'original' | 'jpeg' | 'png') => {
+    const images = extractDownloadableImages(nodes);
+    if (images.length === 0) {
+      alert('没有可下载的图像');
+      return;
+    }
+
+    setIsBatchDownloading(true);
+    setBatchDownloadProgress(null);
+    setShowBatchDownloadMenu(false);
+
+    try {
+      await downloadAllImages(
+        { format, images },
+        (progress) => {
+          setBatchDownloadProgress(progress);
+        }
+      );
+    } catch (error) {
+      console.error('批量下载失败:', error);
+      alert('批量下载失败: ' + (error instanceof Error ? error.message : String(error)));
+    } finally {
+      setIsBatchDownloading(false);
+      setBatchDownloadProgress(null);
+    }
+  };
   
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -1164,11 +1222,11 @@ const App: React.FC = () => {
                   <input type="file" ref={fileInputRef} onChange={handleFileChange} accept=".json" style={{ display: 'none' }} />
               </div>
               
-              {/* 对齐参考线设置 */}
+              {/* 对齐功能设置 */}
               <div className="flex items-center space-x-1 bg-[#282A2D] p-1 rounded-lg border border-white/10">
                   <button 
                       onClick={() => setShowAlignmentGuides(prev => !prev)}
-                      title={`${showAlignmentGuides ? 'Hide' : 'Show'} Alignment Guides`}
+                      title={`${showAlignmentGuides ? '关闭对齐功能' : '开启对齐功能'}`}
                       className={`p-2 rounded-md transition-colors ${
                           showAlignmentGuides 
                               ? 'text-blue-400 bg-blue-500/20' 
@@ -1176,10 +1234,95 @@ const App: React.FC = () => {
                       }`}
                   >
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8h16M4 12h16M4 16h16" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 4v16M12 4v16M16 4v16" />
                       </svg>
                   </button>
               </div>
+              
+              {/* 批量下载按钮 */}
+              {getDownloadableImagesCount() > 0 && (
+                <div className="relative" data-batch-download-menu>
+                  <button
+                    onClick={() => setShowBatchDownloadMenu(!showBatchDownloadMenu)}
+                    disabled={isBatchDownloading || isProcessing}
+                    className="flex items-center px-4 py-2.5 font-medium text-white bg-green-600 rounded-lg shadow-lg hover:bg-green-700 disabled:bg-gray-700 disabled:opacity-60 disabled:cursor-not-allowed transition-all duration-200 ease-in-out"
+                    title={`批量下载 ${getDownloadableImagesCount()} 张图片`}
+                  >
+                    {isBatchDownloading ? (
+                      <>
+                        <div className="w-5 h-5 mr-2 border-2 border-t-transparent border-white rounded-full animate-spin"></div>
+                        {batchDownloadProgress ? `${batchDownloadProgress.current}/${batchDownloadProgress.total}` : '下载中...'}
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        批量下载 ({getDownloadableImagesCount()})
+                      </>
+                    )}
+                  </button>
+                  
+                  {/* 下载格式选择菜单 */}
+                  {showBatchDownloadMenu && !isBatchDownloading && (
+                    <div className="absolute top-full right-0 mt-2 w-40 bg-[#282A2D] border border-white/10 rounded-lg shadow-lg z-30">
+                      <div className="py-1">
+                        <button
+                          className="w-full px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white text-left transition-colors"
+                          onClick={() => handleBatchDownload('original')}
+                          title="下载原始质量图片"
+                        >
+                          原始质量
+                        </button>
+                        <button
+                          className="w-full px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white text-left transition-colors"
+                          onClick={() => handleBatchDownload('jpeg')}
+                          title="压缩为JPG格式"
+                        >
+                          JPG 压缩
+                        </button>
+                        <button
+                          className="w-full px-3 py-2 text-sm text-gray-300 hover:bg-white/10 hover:text-white text-left transition-colors"
+                          onClick={() => handleBatchDownload('png')}
+                          title="压缩为PNG格式"
+                        >
+                          PNG 压缩
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* 下载进度显示 */}
+                  {batchDownloadProgress && (
+                    <div className="absolute top-full right-0 mt-2 w-64 bg-[#282A2D] border border-white/10 rounded-lg shadow-lg z-30 p-3">
+                      <div className="text-sm text-gray-300 mb-2">
+                        {batchDownloadProgress.currentFileName && (
+                          <div className="truncate mb-1">
+                            正在下载: {batchDownloadProgress.currentFileName}
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>进度: {batchDownloadProgress.current}/{batchDownloadProgress.total}</span>
+                          <span>{Math.round((batchDownloadProgress.current / batchDownloadProgress.total) * 100)}%</span>
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-700 rounded-full h-2">
+                        <div 
+                          className="bg-green-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${(batchDownloadProgress.current / batchDownloadProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                      {batchDownloadProgress.error && (
+                        <div className="text-red-400 text-xs mt-2">
+                          错误: {batchDownloadProgress.error}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+              
               <button
                   onClick={runWorkflow}
                   disabled={isProcessing}

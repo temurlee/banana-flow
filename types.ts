@@ -77,3 +77,31 @@ export interface HistoryItem {
   originalName?: string;
   cropPrompt?: string;
 }
+
+// Batch download related types
+export interface BatchDownloadImage {
+  src: string;
+  originalName: string;
+  cropPrompt?: string;
+  visualCrop?: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    imageDisplayWidth: number;
+    imageDisplayHeight: number;
+  };
+}
+
+export interface BatchDownloadOptions {
+  format: 'original' | 'jpeg' | 'png';
+  images: BatchDownloadImage[];
+}
+
+export interface BatchDownloadProgress {
+  current: number;
+  total: number;
+  currentFileName: string;
+  isComplete: boolean;
+  error?: string;
+}
